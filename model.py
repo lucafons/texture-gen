@@ -6,14 +6,15 @@ import math as m
 from skimage import io
 from random import randint
 os.environ['DGLBACKEND'] = "tensorflow"
+multiplier = 3
 
 class Discriminator(tf.keras.Model):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv1 = tf.keras.layers.Conv2D(32, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv2 = tf.keras.layers.Conv2D(64, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv3 = tf.keras.layers.Conv2D(128, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv4 = tf.keras.layers.Conv2D(256, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv1 = tf.keras.layers.Conv2D(32*multiplier, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv2 = tf.keras.layers.Conv2D(64*multiplier, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv3 = tf.keras.layers.Conv2D(128*multiplier, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv4 = tf.keras.layers.Conv2D(256*multiplier, (5,5), strides=(2,2), padding="same",activation=tf.keras.layers.LeakyReLU(alpha=0.2))
         self.conv5 = tf.keras.layers.Conv2D(1, (5,5), strides=(2,2), padding="same")
         self.leakyrelu = tf.keras.layers.LeakyReLU()
     def call(self, image):
@@ -53,15 +54,15 @@ class Generator(tf.keras.Model):
         #self.conv3 = tf.keras.layers.Conv2D(64, 5, 1, padding="valid", activation=tf.keras.layers.LeakyReLU(alpha=0.2), use_bias=False)
         #self.conv4 = tf.keras.layers.Conv2D(32, 5, 1, padding="valid", activation=tf.keras.layers.LeakyReLU(alpha=0.2), use_bias=False)
         #self.conv5 = tf.keras.layers.Conv2D(3, 5, 1, padding="valid", activation="tanh", use_bias=False)
-        self.conv1 =  tf.keras.layers.Conv2DTranspose(256, (5, 5), strides=(1, 1), padding='same', use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv2 =  tf.keras.layers.Conv2DTranspose(256, (5, 5), strides=(1, 1), padding='same', use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv3 =  tf.keras.layers.Conv2DTranspose(256, (5, 5), strides=(1, 1), padding='same', use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv4 =  tf.keras.layers.Conv2DTranspose(256, (5, 5), strides=(1, 1), padding='same', use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.conv5 =  tf.keras.layers.Conv2DTranspose(256, (5, 5), strides=(1, 1), padding='same', use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.2))
-        self.normalization1 = tf.keras.layers.BatchNormalization()
-        self.normalization2= tf.keras.layers.BatchNormalization()
-        self.normalization3 = tf.keras.layers.BatchNormalization()
-        self.normalization4 = tf.keras.layers.BatchNormalization()
+        self.conv1 =  tf.keras.layers.Conv2D(256*multiplier, (5, 5), padding='valid', activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv2 =  tf.keras.layers.Conv2D(128*multiplier, (5, 5), padding='valid', activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv3 =  tf.keras.layers.Conv2D(64*multiplier, (5, 5), padding='valid', activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv4 =  tf.keras.layers.Conv2D(32*multiplier, (5, 5), padding='valid', activation=tf.keras.layers.LeakyReLU(alpha=0.2))
+        self.conv5 =  tf.keras.layers.Conv2D(3, (5, 5), padding='valid', activation="sigmoid")
+        self.normalization1 = tf.keras.layers.BatchNormalization(momentum=0.9)
+        self.normalization2= tf.keras.layers.BatchNormalization(momentum=0.9)
+        self.normalization3 = tf.keras.layers.BatchNormalization(momentum=0.9)
+        self.normalization4 = tf.keras.layers.BatchNormalization(momentum=0.9)
 
     def call(self, image, zg):
         L = image.shape[1]
@@ -82,30 +83,36 @@ class Generator(tf.keras.Model):
         arrs = [tf.reshape(arr, [image.shape[0],L,M,1]) for arr in arrs]
         ptensor = tf.concat(arrs,axis=3)
         ptensor = tf.sin(ptensor)
-        #image = tf.concat([image,ptensor], axis=3)
-        layer1 = upsample(image)
+        image = tf.concat([image,ptensor], axis=3)
+        #print(image.shape)
+        #layer1 = tf.image.resize(image, [image.shape[1]*2+4, image.shape[2]*2+4])
+        layer1 = tf.keras.layers.UpSampling2D()(image)
         layer1 = self.conv1(layer1)
+        #print(layer1.shape)
         layer1 = tf.keras.layers.Dropout(dropoutn)(layer1)
         layer1 = self.normalization1(layer1)
 
-        layer2 = upsample(layer1)
+        #layer2 = tf.image.resize(layer1, [layer1.shape[1]*2+4, layer1.shape[2]*2+4])
+        layer2 = tf.keras.layers.UpSampling2D()(layer1)
         layer2 = self.conv2(layer2)
         layer2 = tf.keras.layers.Dropout(dropoutn)(layer2)
         layer2 = self.normalization2(layer2)
 
-        layer3 = upsample(layer2)
+        #layer3 = tf.image.resize(layer2, [layer2.shape[1]*2+4, layer2.shape[2]*2+4])
+        layer3 = tf.keras.layers.UpSampling2D()(layer2)
         layer3 = self.conv3(layer3)
         layer3 = tf.keras.layers.Dropout(dropoutn)(layer3)
         layer3 = self.normalization3(layer3)
 
-        layer4 = upsample(layer3)
+        #layer4 = tf.image.resize(layer3, [layer3.shape[1]*2+4, layer3.shape[2]*2+4])
+        layer4 = tf.keras.layers.UpSampling2D()(layer3)
         layer4 = self.conv4(layer4)
         layer4 = tf.keras.layers.Dropout(dropoutn)(layer4)
         layer4 = self.normalization4(layer4)
 
-        layer5 = upsample(layer4)
+        #layer5 = tf.image.resize(layer4, [layer4.shape[1]*2+4, layer4.shape[2]*2+4])
+        layer5 = tf.keras.layers.UpSampling2D()(layer4)
         layer5 = self.conv5(layer5)
-
         return layer5
     def loss(self, fake_output):
         cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -143,13 +150,13 @@ def gen_image(generator, x, y):
     outimg = tf.reshape(generator(train_batch, zg, training=False), [x,y,3])
     return outimg
 #@tf.function
-def train_step(images, generator, discriminator):
-    L = int(images.shape[1]/32)
-    M = int(images.shape[2]/32)
-    zl = tf.random.uniform([images.shape[0], L, M, 3])
-    zg = tf.random.uniform([images.shape[0], 1, 1, generator.dg])
+def train_step(images, generator, discriminator, train_batch, zg):
     generator_optimizer = tf.keras.optimizers.Adam(1e-4)
     discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    L = 10
+    M = 10
+    zl = tf.random.uniform([images.shape[0], L, M, generator.dl])
+    zg = tf.random.uniform([images.shape[0], 1, 1, generator.dg])
     zgs = tf.concat([tf.concat([zg for i in range(L)],axis=1) for j in range(M)],axis=2)
     train_batch = tf.concat([zl, zgs], axis=3)
     zg = tf.reshape(zg, [images.shape[0], generator.dg])
@@ -170,37 +177,45 @@ def train_step(images, generator, discriminator):
     print("Discriminator loss", discloss)
     print("Generator loss", genloss)
 def train(generator, discriminator, image):
-    epochs = 100
-    numtrain = 4000
-    images = []
-    X = image.shape[0]
-    Y = image.shape[1]
-    patchsize = 192
-    for k in range(numtrain):
-        xstart = randint(0, X-patchsize-1)
-        ystart = randint(0, Y-patchsize-1)
-        images.append(image[xstart:xstart+patchsize,ystart:ystart+patchsize])
-    images = tf.concat([tf.reshape(im, [1, patchsize, patchsize, 3]) for im in images], axis=0)
-    images = tf.cast(images, tf.float32)/255
+    epochs = 500
+    numtrain = 2000
     for i in range(epochs):
+        images = []
+        X = image.shape[0]
+        Y = image.shape[1]
+        patchsize = 196
+        for k in range(numtrain):
+            xstart = randint(0, X-patchsize-1)
+            ystart = randint(0, Y-patchsize-1)
+            images.append(image[xstart:xstart+patchsize,ystart:ystart+patchsize])
+        images = tf.concat([tf.reshape(im, [1, patchsize, patchsize, 3]) for im in images], axis=0)
+        images = tf.cast(images, tf.float32)/255
+        L = int(images.shape[1]/32)
+        M = int(images.shape[2]/32)
+        zl = tf.random.uniform([images.shape[0], L, M, generator.dl])
+        zg = tf.random.uniform([images.shape[0], 1, 1, generator.dg])
+        zgs = tf.concat([tf.concat([zg for i in range(L)],axis=1) for j in range(M)],axis=2)
+        train_batch = tf.concat([zl, zgs], axis=3)
+        zg = tf.reshape(zg, [images.shape[0], generator.dg])
         for j in range(int(numtrain/16)):
             print(i, j)
-            train_step(images[j*16:(j+1)*16], generator, discriminator)
-        zl = tf.random.uniform([1, 8, 8, 3])
+            train_step(images[j*16:(j+1)*16], generator, discriminator, train_batch[j*16:(j+1)*16], zg[j*16:(j+1)*16])
+        zl = tf.random.uniform([1, 10, 10, generator.dl])
         zg = tf.random.uniform([1, 1, 1, generator.dg])
-        zgs = tf.concat([tf.concat([zg for i in range(8)],axis=1) for j in range(8)],axis=2)
+        zgs = tf.concat([tf.concat([zg for i in range(10)],axis=1) for j in range(10)],axis=2)
         train_batch = tf.concat([zl, zgs], axis=3)
         zg = tf.reshape(zg, [1, generator.dg])
-        outimg = tf.reshape(generator(train_batch, zg, training=False), [256,256,3])
+        outimg = tf.reshape(generator(train_batch, zg, training=False), [196,196,3])
         #outimg = (outimg-np.min(outimg))/(np.max(outimg)-np.min(outimg))
         #outimg *= 255
         #outimg = tf.cast(outimg, tf.uint8)
         #outimg = (outimg+1)*128-1
         #outimg = tf.cast(outimg, tf.uint8)
         io.imsave(str(i)+".jpg", outimg)
-    io.imsave("final.jpg", gen_image(generator(1024,1024)))
+    generator.save_weights("brickwall-3")
+    #io.imsave("final.jpg", gen_image(generator(1024,1024)))
 def main():
-    model = Generator(128, 128, 3)
+    model = Generator(64*multiplier, 8, 3)
     discriminator = Discriminator()
     image = io.imread("stonebricks.jpg")
     train(model, discriminator, image)
